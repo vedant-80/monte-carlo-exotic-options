@@ -7,7 +7,7 @@ def main(ticker: str, call: bool, strike: float, T: int, N: int, option: str, ac
     data = yf.download(ticker, start='2020-01-01', end='2025-01-01')
     opens = data['Open'].to_numpy().ravel()
     percent_change_samples = np.empty((N, T))
-    price_samples = np.empty((N, T))
+    price_samples = np.empty((N, T + 1)) # +1 to account for strike price at time 0
     for i in range(N):
         percent_change_samples[i] = draw_samples(T, opens)
     for i in range(N):
@@ -25,11 +25,9 @@ def draw_samples(T:int, opens:np.ndarray):
     Outputs:
         samples - numpy array of T daily percent changes
     """
-    samples = np.zeros(T)
-    for i in range(T):
-        idx = np.random.randint(1, len(opens)) # Will vectorize in future
-        daily_return = (opens[idx] - opens[idx-1]) / opens[idx-1]
-        samples[i] = daily_return
+    idxs = np.random.randint(1, len(opens), size=T)
+    prev_idxs = idxs - 1
+    samples = (opens[idxs] - opens[prev_idxs]) / opens[prev_idxs]
     return samples
     
 
@@ -43,14 +41,8 @@ def get_prices(strike: float, samples: np.array):
     Outputs:
         prices - numpy array of daily prices
     """
-    prices = np.zeros(len(samples))
-    prices[0] = strike
-    previous_price = strike
-    for idx in range(1, len(prices)): # Start from 1 since we set 0th price to strike
-        new_price = previous_price * (1 + samples[idx])
-        prices[idx] = new_price
-        previous_price = new_price
-
+    prices = strike * np.cumprod(1 + samples)
+    prices = np.insert(prices, 0, strike)
     return prices
 
 
